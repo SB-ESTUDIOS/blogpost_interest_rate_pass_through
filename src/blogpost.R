@@ -62,9 +62,6 @@ tasas <-tasas%>%ts(start = c(2008,1),frequency = 12)
 tasas <-tasas%>%as.zoo()
 
 
-#Quitando lsa filas con nulls en la tasa activa de 360 dias
-tasas <- tasas%>%head(-2)
-
 
 
 df <- data.frame(
