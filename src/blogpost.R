@@ -322,6 +322,594 @@ Box.test(residuals(optimal_model_activa_post_covid), lag = 10, type = "Ljung-Box
 jarque.bera.test(residuals(optimal_model_activa_post_covid))
 
 
+
+####Ahora calcularemos el numero de periodos para restablecer el equilibrio de largo plazo y su intervalo de confianza
+
+#Primero la tasa pasiva
+#Muestra pre-COVID
+
+summary(optimal_model_pre_covid)
+
+summary_model <- summary(optimal_model_pre_covid)
+
+alpha_hat <- summary_model$coefficients["lag_resid","Estimate"]
+
+se_alpha_hat <- summary_model$coefficients["lag_resid","Std. Error"]
+
+restoration_time_pasiva_pre_covid <- simulate_restoration_time_ci(alpha_hat,se_alpha_hat)
+
+
+
+
+data_pre <- restoration_time_pasiva_pre_covid$distribution_periods
+
+
+
+# Step 2: Compute histogram manually
+hist_data_pre <- hist(data_pre, breaks = "FD", plot = FALSE)
+
+rel_freqs <- hist_data_pre$counts / sum(hist_data_pre$counts)
+
+# Step 3: Identify bins with relative frequency >= 0.005 (0.5%)
+valid_bins <- which(rel_freqs >= 0.005)
+
+# Get the bin ranges that meet the criterion
+bin_edges <- hist_data_pre$breaks
+bin_mins <- bin_edges[valid_bins]
+bin_maxs <- bin_edges[valid_bins + 1]
+
+# Step 4: Filter original data_pre to include only values in valid bins
+filtered_data_pre <- data_pre[sapply(data_pre, function(x) any(x >= bin_mins & x < bin_maxs))]
+
+# Step 5: Compute density on filtered data_pre
+dens_filtered_pre <- density(filtered_data_pre)
+
+x_range <- range(dens_filtered_pre$x)
+buffer <- diff(x_range) * 0.05
+x_range <- c(x_range[1] - buffer, x_range[2] + buffer)
+
+
+vline_x_pre <- restoration_time_pasiva_pre_covid$point_estimate 
+
+# Step 5: Clip original data_pre to match density range for the histogram
+hist_data_pre_clipped <- data_pre[data_pre >= x_range[1] & data_pre <= x_range[2]]
+
+stats_text <- sprintf(
+  "Media: %.2f\nMediana: %.2f\nDesv. Est.: %.2f\nAsimetría: %.2f\nCurtosis: %.2f",
+  mean(hist_data_pre_clipped),
+  median(hist_data_pre_clipped),
+  sd(hist_data_pre_clipped),
+  skewness(hist_data_pre_clipped),
+  kurtosis(hist_data_pre_clipped)
+)
+
+hist_time_pre_pasiva <- plot_ly() %>%
+  add_trace(
+    x = ~hist_data_pre_clipped,
+    type = "histogram",
+    histnorm = "percent",
+    marker = list(color = 'lightblue'),
+    autobinx = FALSE,
+    xbins = list(size = 1),
+    showlegend = FALSE   
+  ) %>%
+  add_trace(
+    x = ~dens_filtered_pre$x,
+    y = ~dens_filtered_pre$y * 100,
+    type = 'scatter',
+    mode = 'lines',
+    name = 'Density',
+    line = list(color = '#072030', width = 2),
+    showlegend = FALSE   
+  ) %>%
+  add_trace(
+    x = c(vline_x_pre, vline_x_pre),
+    y = c(0, max(dens_filtered_pre$y * 100)),
+    type = 'scatter',
+    mode = 'lines',
+    name = 'Estimador puntual',
+    line = list(color = 'darkblue', dash = 'dash', width = 2),
+    showlegend = TRUE
+  ) %>%
+  layout(
+    title = list(
+      text = "Histograma del Tiempo de Restablecimiento del Equilibrio período pre-COVID (tasa pasiva)",
+      font = list(size = 24)
+    ),
+    xaxis = list(
+      title = list(text = "Meses", font = list(size = 22)),
+      tickfont = list(size = 18),
+      range = dens_filtered_pre$x
+    ),
+    yaxis = list(
+      title = list(text = "Probabilidad", font = list(size = 22)),
+      tickfont = list(size = 18),
+      range = c(0, 25)
+    ),
+    barmode = "overlay",
+    showlegend = TRUE,
+    legend = list(font = list(size = 20)),
+    annotations = list(
+      list(
+        x = 1, y = 1,  # Top right corner in paper coordinates (relative to full plot)
+        xref = "paper", yref = "paper",
+        xanchor = "right", yanchor = "top",
+        text = stats_text,
+        showarrow = FALSE,
+        font = list(size = 20, family = "Arial", color = "black"),
+        align = "left",
+        bordercolor = "black",
+        borderwidth = 1,
+        borderpad = 10,
+        bgcolor = "rgba(255,255,255,0.8)"
+      )
+    )
+  )
+
+hist_time_pre_pasiva
+
+
+#Estadistica descriptiva de la simulacion para muestra pre-COVID y tasa pasiva
+stats <- list(
+  mean   = mean(hist_data_pre_clipped, na.rm = TRUE),
+  sd     = sd(hist_data_pre_clipped, na.rm = TRUE),
+  q25    = quantile(hist_data_pre_clipped, 0.25, na.rm = TRUE),
+  median = median(hist_data_pre_clipped, na.rm = TRUE),
+  q75    = quantile(hist_data_pre_clipped, 0.75, na.rm = TRUE),
+  skewness = skewness(hist_data_pre_clipped, na.rm = TRUE),
+  kurtosis = kurtosis(hist_data_pre_clipped, na.rm = TRUE)
+)
+
+stats
+
+#Muestra post-COVID
+
+summary(optimal_model_post_covid)
+
+summary_model <- summary(optimal_model_post_covid)
+
+alpha_hat <- summary_model$coefficients["lag_resid","Estimate"]
+
+se_alpha_hat <- summary_model$coefficients["lag_resid","Std. Error"]
+
+restoration_time_pasiva_post_covid <- simulate_restoration_time_ci(alpha_hat,se_alpha_hat)
+
+
+
+
+data_post <- restoration_time_pasiva_post_covid$distribution_periods
+# Step 2: Compute histogram manually
+hist_data_post <- hist(data_post, breaks = "FD", plot = FALSE)
+rel_freqs <- hist_data_post$counts / sum(hist_data_post$counts)
+
+# Step 3: Identify bins with relative frequency >= 0.005 (0.5%)
+valid_bins <- which(rel_freqs >= 0.005)
+
+# Get the bin ranges that meet the criterion
+bin_edges <- hist_data_post$breaks
+bin_mins <- bin_edges[valid_bins]
+bin_maxs <- bin_edges[valid_bins + 1]
+
+# Step 4: Filter original data_post to include only values in valid bins
+filtered_data_post <- data_post[sapply(data_post, function(x) any(x >= bin_mins & x < bin_maxs))]
+
+# Step 5: Compute density on filtered data_post
+dens_filtered_post <- density(filtered_data_post)
+
+x_range <- range(dens_filtered_post$x)
+buffer <- diff(x_range) * 0.05
+x_range <- c(x_range[1] - buffer, x_range[2] + buffer)
+
+
+vline_x_post <- restoration_time_pasiva_post_covid$point_estimate 
+
+# Step 5: Clip original data_post to match density range for the histogram
+hist_data_post_clipped <- data_post[data_post >= x_range[1] & data_post <= x_range[2]]
+
+stats_text <- sprintf(
+  "Media: %.2f\nMediana: %.2f\nDesv. Est.: %.2f\nAsimetría: %.2f\nCurtosis: %.2f",
+  mean(hist_data_post_clipped),
+  median(hist_data_post_clipped),
+  sd(hist_data_post_clipped),
+  skewness(hist_data_post_clipped),
+  kurtosis(hist_data_post_clipped)
+)
+
+hist_time_post_pasiva  <- plot_ly() %>%
+  add_trace(
+    x = ~hist_data_post_clipped,
+    type = "histogram",
+    histnorm = "percent",
+    marker = list(color = 'lightblue'),
+    autobinx = FALSE,
+    xbins = list(size = 1),
+    showlegend = FALSE   
+  ) %>%
+  add_trace(
+    x = ~dens_filtered_post$x,
+    y = ~dens_filtered_post$y * 100,
+    type = 'scatter',
+    mode = 'lines',
+    name = 'Density',
+    line = list(color = '#072030', width = 2),
+    showlegend = FALSE   
+  ) %>%
+  add_trace(
+    x = c(vline_x_post, vline_x_post),
+    y = c(0, max(dens_filtered_post$y * 100)),
+    type = 'scatter',
+    mode = 'lines',
+    name = 'Estimador puntual',
+    line = list(color = 'darkblue', dash = 'dash', width = 2),
+    showlegend = TRUE
+  ) %>%
+  layout(
+    title = list(
+      text = "Histograma del Tiempo de Restablecimiento del Equilibrio período post-COVID (tasa pasiva)",
+      font = list(size = 24)
+    ),
+    xaxis = list(
+      title = list(text = "Meses", font = list(size = 22)),
+      tickfont = list(size = 18),
+      range = dens_filtered_post$x
+    ),
+    yaxis = list(
+      title = list(text = "Probabilidad", font = list(size = 22)),
+      tickfont = list(size = 18),
+      range = c(0, 25)
+    ),
+    barmode = "overlay",
+    showlegend = TRUE,
+    legend = list(font = list(size = 20)),
+    annotations = list(
+      list(
+        x = 1, y = 1,  # Top right corner in paper coordinates (relative to full plot)
+        xref = "paper", yref = "paper",
+        xanchor = "right", yanchor = "top",
+        text = stats_text,
+        showarrow = FALSE,
+        font = list(size = 20, family = "Arial", color = "black"),
+        align = "left",
+        bordercolor = "black",
+        borderwidth = 1,
+        borderpad = 10,
+        bgcolor = "rgba(255,255,255,0.8)"
+      )
+    )
+  )
+
+hist_time_post_pasiva
+
+# Combine vertically with shared x-axis
+fig <- subplot(hist_time_pre_pasiva, hist_time_post_pasiva, nrows = 2, shareX = TRUE, titleY = TRUE) %>%
+  layout(title = "",#Tiempo de Restablecimiento del Equilibrio (tasas pasivas)
+         annotations = list(
+           list(
+             x = 0.5,
+             y = 0.95,
+             text = "Período Pre-COVID",
+             xref = "paper",
+             yref = "paper",
+             showarrow = FALSE,
+             xanchor = "center",
+             yanchor = "bottom",
+             font = list(size = 20)
+           ),
+           list(
+             x = 0.5,
+             y = 0.45,
+             text = "Período Post-COVID",
+             xref = "paper",
+             yref = "paper",
+             showarrow = FALSE,
+             xanchor = "center",
+             yanchor = "bottom",
+             font = list(size = 20)
+           )
+         ))
+
+fig
+
+
+#Tasa activa
+
+#Primero período pre-COVID
+summary(optimal_model_activa_pre_covid)
+
+
+summary_model <- summary(optimal_model_activa_pre_covid)
+
+alpha_hat <- summary_model$coefficients["lag_resid","Estimate"]
+
+se_alpha_hat <- summary_model$coefficients["lag_resid","Std. Error"]
+
+restoration_time_activa_pre_covid <- simulate_restoration_time_ci(alpha_hat,se_alpha_hat)
+
+
+
+data_pre_activa <- restoration_time_activa_pre_covid$distribution_periods
+# Step 2: Compute histogram manually
+hist_data_pre_activa <- hist(data_pre_activa, breaks = "FD", plot = FALSE)
+rel_freqs <- hist_data_pre_activa$counts / sum(hist_data_pre_activa$counts)
+
+# Step 3: Identify bins with relative frequency >= 0.005 (0.5%)
+valid_bins <- which(rel_freqs >= 0.005)
+
+# Get the bin ranges that meet the criterion
+bin_edges <- hist_data_pre_activa$breaks
+bin_mins <- bin_edges[valid_bins]
+bin_maxs <- bin_edges[valid_bins + 1]
+
+# Step 4: Filter original data_pre_activa to include only values in valid bins
+filtered_data_pre_activa <- data_pre_activa[sapply(data_pre_activa, function(x) any(x >= bin_mins & x < bin_maxs))]
+
+# Step 5: Compute density on filtered data_pre_activa
+dens_filtered_pre_activa <- density(filtered_data_pre_activa)
+
+x_range <- range(dens_filtered_pre_activa$x)
+buffer <- diff(x_range) * 0.05
+x_range <- c(x_range[1] - buffer, x_range[2] + buffer)
+
+
+vline_x_pre_activa <- restoration_time_activa_pre_covid$point_estimate 
+
+# Step 5: Clip original data_pre_activa to match density range for the histogram
+hist_data_pre_activa_clipped <- data_pre_activa[data_pre_activa >= x_range[1] & data_pre_activa <= x_range[2]]
+
+stats_text <- sprintf(
+  "Media: %.2f\nMediana: %.2f\nDesv. Est.: %.2f\nAsimetría: %.2f\nCurtosis: %.2f",
+  mean(hist_data_pre_activa_clipped),
+  median(hist_data_pre_activa_clipped),
+  sd(hist_data_pre_activa_clipped),
+  skewness(hist_data_pre_activa_clipped),
+  kurtosis(hist_data_pre_activa_clipped)
+)
+
+
+hist_time_pre_activa <- plot_ly() %>%
+  add_trace(
+    x = ~hist_data_pre_activa_clipped,
+    type = "histogram",
+    histnorm = "percent",
+    marker = list(color = 'lightblue'),
+    autobinx = FALSE,
+    xbins = list(size = 1),
+    showlegend = FALSE   
+  ) %>%
+  add_trace(
+    x = ~dens_filtered_pre_activa$x,
+    y = ~dens_filtered_pre_activa$y * 100,
+    type = 'scatter',
+    mode = 'lines',
+    name = 'Density',
+    line = list(color = '#072030', width = 2),
+    showlegend = FALSE   
+  ) %>%
+  add_trace(
+    x = c(vline_x_pre_activa, vline_x_pre_activa),
+    y = c(0, max(dens_filtered_pre_activa$y * 100)),
+    type = 'scatter',
+    mode = 'lines',
+    name = 'Estimador puntual',
+    line = list(color = 'darkblue', dash = 'dash', width = 2),  # now dashed
+    showlegend = TRUE
+  ) %>%
+  layout(
+    title = list(
+      text = "Histograma del Tiempo de Restablecimiento del Equilibrio período pre-COVID (tasa activa)",
+      font = list(size = 24)
+    ),
+    xaxis = list(
+      title = list(text = "Meses", font = list(size = 22)),
+      tickfont = list(size = 18),
+      range = dens_filtered_pre_activa$x
+    ),
+    yaxis = list(
+      title = list(text = "Probabilidad", font = list(size = 22)),
+      tickfont = list(size = 18)
+    ),
+    barmode = "overlay",
+    showlegend = TRUE,
+    legend = list(font = list(size = 20)),  # 👈 makes "Estimador puntual" larger
+    annotations = list(
+      list(
+        x = 1, y = 1,  # Top right corner in paper coordinates (relative to full plot)
+        xref = "paper", yref = "paper",
+        xanchor = "right", yanchor = "top",
+        text = stats_text,
+        showarrow = FALSE,
+        font = list(size = 20, family = "Arial", color = "black"),
+        align = "left",
+        bordercolor = "black",
+        borderwidth = 1,
+        borderpad = 10,
+        bgcolor = "rgba(255,255,255,0.8)"
+      )
+    )
+  )
+
+hist_time_pre_activa
+
+
+#Estadistica descriptiva de la simulacion para muestra pre-COVID y tasa activa
+stats <- list(
+  mean   = mean(hist_data_pre_activa_clipped, na.rm = TRUE),
+  sd     = sd(hist_data_pre_activa_clipped, na.rm = TRUE),
+  q25    = quantile(hist_data_pre_activa_clipped, 0.25, na.rm = TRUE),
+  median = median(hist_data_pre_activa_clipped, na.rm = TRUE),
+  q75    = quantile(hist_data_pre_activa_clipped, 0.75, na.rm = TRUE),
+  skewness = skewness(hist_data_pre_activa_clipped, na.rm = TRUE),
+  kurtosis = kurtosis(hist_data_pre_activa_clipped, na.rm = TRUE)
+)
+
+
+stats
+
+#Período post-COVID
+summary(optimal_model_activa_post_covid)
+
+
+summary_model <- summary(optimal_model_activa_post_covid)
+
+alpha_hat <- summary_model$coefficients["lag_resid","Estimate"]
+
+se_alpha_hat <- summary_model$coefficients["lag_resid","Std. Error"]
+
+restoration_time_activa_post_covid <- simulate_restoration_time_ci(alpha_hat,se_alpha_hat)
+
+
+
+
+data_post_activa <- restoration_time_activa_post_covid$distribution_periods
+# Step 2: Compute histogram manually
+hist_data_post_activa <- hist(data_post_activa, breaks = "FD", plot = FALSE)
+rel_freqs <- hist_data_post_activa$counts / sum(hist_data_post_activa$counts)
+
+# Step 3: Identify bins with relative frequency >= 0.005 (0.5%)
+valid_bins <- which(rel_freqs >= 0.005)
+
+# Get the bin ranges that meet the criterion
+bin_edges <- hist_data_post_activa$breaks
+bin_mins <- bin_edges[valid_bins]
+bin_maxs <- bin_edges[valid_bins + 1]
+
+# Step 4: Filter original data_post_activa to include only values in valid bins
+filtered_data_post_activa <- data_post_activa[sapply(data_post_activa, function(x) any(x >= bin_mins & x < bin_maxs))]
+
+# Step 5: Compute density on filtered data_post_activa
+dens_filtered_post_activa <- density(filtered_data_post_activa)
+
+x_range <- range(dens_filtered_post_activa$x)
+buffer <- diff(x_range) * 0.05
+x_range <- c(x_range[1] - buffer, x_range[2] + buffer)
+
+
+vline_x_post_activa <- restoration_time_activa_post_covid$point_estimate 
+
+# Step 5: Clip original data_post_activa to match density range for the histogram
+hist_data_post_activa_clipped <- data_post_activa[data_post_activa >= x_range[1] & data_post_activa <= x_range[2]]
+
+stats_text <- sprintf(
+  "Media: %.2f\nMediana: %.2f\nDesv. Est.: %.2f\nAsimetría: %.2f\nCurtosis: %.2f",
+  mean(hist_data_post_activa_clipped),
+  median(hist_data_post_activa_clipped),
+  sd(hist_data_post_activa_clipped),
+  skewness(hist_data_post_activa_clipped),
+  kurtosis(hist_data_post_activa_clipped)
+)
+
+hist_time_post_activa <- plot_ly() %>%
+  add_trace(
+    x = ~hist_data_post_activa_clipped,
+    type = "histogram",
+    histnorm = "percent",
+    marker = list(color = 'lightblue'),
+    autobinx = FALSE,
+    xbins = list(size = 1),
+    showlegend = FALSE   
+  ) %>%
+  add_trace(
+    x = ~dens_filtered_post_activa$x,
+    y = ~dens_filtered_post_activa$y * 100,
+    type = 'scatter',
+    mode = 'lines',
+    name = 'Density',
+    line = list(color = '#072030', width = 2),
+    showlegend = FALSE   
+  ) %>%
+  add_trace(
+    x = c(vline_x_post_activa, vline_x_post_activa),
+    y = c(0, max(dens_filtered_post_activa$y * 100)),
+    type = 'scatter',
+    mode = 'lines',
+    name = 'Estimador puntual',
+    line = list(color = 'darkblue', dash = 'dash', width = 2),  # now dashed
+    showlegend = TRUE
+  ) %>%
+  layout(
+    title = list(
+      text = "Histograma del Tiempo de Restablecimiento del Equilibrio período post-COVID (tasa activa)",
+      font = list(size = 24)
+    ),
+    xaxis = list(
+      title = list(text = "Meses", font = list(size = 22)),
+      tickfont = list(size = 18),
+      range = dens_filtered_post_activa$x
+    ),
+    yaxis = list(
+      title = list(text = "Probabilidad", font = list(size = 22)),
+      tickfont = list(size = 18)
+    ),
+    barmode = "overlay",
+    showlegend = TRUE,
+    legend = list(font = list(size = 20)),  # Emphasizes "Estimador puntual"
+    annotations = list(
+      list(
+        x = 1, y = 1,  # Top right corner in paper coordinates (relative to full plot)
+        xref = "paper", yref = "paper",
+        xanchor = "right", yanchor = "top",
+        text = stats_text,
+        showarrow = FALSE,
+        font = list(size = 20, family = "Arial", color = "black"),
+        align = "left",
+        bordercolor = "black",
+        borderwidth = 1,
+        borderpad = 10,
+        bgcolor = "rgba(255,255,255,0.8)"
+      )
+    )
+  )
+
+hist_time_post_activa
+
+
+
+# Combine vertically with shared x-axis
+fig <- subplot(hist_time_pre_activa, hist_time_post_activa, nrows = 2, shareX = TRUE, titleY = TRUE) %>%
+  layout(title = "",#Tiempo de Restablecimiento del Equilibrio (tasas activas)
+         annotations = list(
+           list(
+             x = 0.6,
+             y = 0.95,
+             text = "Período Pre-COVID",
+             xref = "paper",
+             yref = "paper",
+             showarrow = FALSE,
+             xanchor = "center",
+             yanchor = "bottom",
+             font = list(size = 20)
+           ),
+           list(
+             x = 0.5,
+             y = 0.45,
+             text = "Período Post-COVID",
+             xref = "paper",
+             yref = "paper",
+             showarrow = FALSE,
+             xanchor = "center",
+             yanchor = "bottom",
+             font = list(size = 20)
+           )
+         ))
+
+fig
+
+
+#Estadistica descriptiva de la simulacion para muestra post-COVID y tasa activa
+stats <- list(
+  mean   = mean(hist_data_post_activa_clipped, na.rm = TRUE),
+  sd     = sd(hist_data_post_activa_clipped, na.rm = TRUE),
+  q25    = quantile(hist_data_post_activa_clipped, 0.25, na.rm = TRUE),
+  median = median(hist_data_post_activa_clipped, na.rm = TRUE),
+  q75    = quantile(hist_data_post_activa_clipped, 0.75, na.rm = TRUE),
+  skewness = skewness(hist_data_post_activa_clipped, na.rm = TRUE),
+  kurtosis = kurtosis(hist_data_post_activa_clipped, na.rm = TRUE)
+)
+
+
+stats
+
+
 ##############Ahora hacemos el test de cointegracion asimetrica
 
 
